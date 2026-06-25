@@ -20,16 +20,19 @@ detectors, admin tools, etc.) can integrate with it.
 ## Features
 
 - **All-in-one, Oxide-only** — one `Vehicles.cs`, no Carbon required.
-- **22 base-game vehicles + 13 themed custom variants** out of the box.
+- **157-vehicle catalog** out of the box — base vehicles, themed showcase
+  variants, and an auto-generated set of tiered variants (Stock, Sport, Racing,
+  Armored, Heavy, Hauler, Hunter, VIP, Elite, Ghost) across every chassis.
 - **Custom-variant framework** — per-vehicle **skin**, **health/toughness**,
   **speed/handling** (best-effort), **no-decay** and **owner-lock** modifiers.
+- **Multi-ownership** — own **many** vehicles at once, including multiple of
+  the same type (configurable cap, default 25; `0` = unlimited).
+- **Experimental drivable Bradley** — spawn and *drive* the real Bradley tank.
 - **Per-vehicle permission, price, cooldown and fuel.**
 - **Economy** via **Economics** (coins) or **ServerRewards** (RP) — both
   optional; free if neither is installed.
-- **Ownership** — one of each type per player, tracked across restarts;
-  optional owner-only mounting.
-- **Recall / remove / where** management with loot-safety, building-blocked,
-  water and max-vehicle checks.
+- **Recall / remove / removeall / where** management (acts on your nearest
+  vehicle of a type) with loot-safety, building-blocked, water and cap checks.
 - **Discord webhook logging** of spawns, recalls, removals, denials and API
   actions (throttled to avoid rate limits).
 - **Public API + hooks** for compatible plugins.
@@ -56,11 +59,24 @@ Superbike, War Horse, Racing Snowmobile, Speedboat, Yacht, Attack Submarine.
 | --- | --- | --- |
 | **Apache Gunship** | Attack helicopter | Armored, owner-locked, no-decay — a stand-in for a Karuza-style custom Apache (his exact model is a proprietary asset). |
 | **Motorhome** | 4-module car (storage modules) | Tough RV with onboard storage, no-decay. Stand-in for a custom motorhome. |
-| **Bradley Combat** | **Real** `bradley_apc` tank | Spawns the genuine game Bradley with its AI disabled (owned, tame, non-hostile). **Disabled by default** — enable in config. A *player-drivable* Bradley is a separate, larger build. |
+| **Bradley Combat** | **Real** `bradley_apc` tank | Spawns the genuine game Bradley. **Drivable** is enabled on this entry (experimental). **Shipped disabled** — set `"Enabled": true` in config to use it. |
 
 > Apache and Motorhome reuse base chassis because Karuza's actual 3D models are
 > paid asset bundles a plugin can't contain. Bradley uses the real in-game
-> entity, so it's the genuine tank — just neutralized so it doesn't attack you.
+> entity, so it's the genuine tank.
+
+### Drivable Bradley (experimental)
+
+The `bradley` entry has `"Drivable": true`. When you spawn it, the plugin
+disables the tank's AI, parents a **driver seat** to it, and reads the seated
+player's **W/S** (forward/back) and **A/D** (turn) input to drive it. Set
+`"Drivable": false` to instead get a tame, parked tank (AI off, non-hostile).
+
+This is a **first pass that needs on-server tuning** — drive force, turn speed
+and the seat position are the parts most likely to need adjustment once you
+test it on your build. Main-cannon firing under player control is **not** wired
+up yet (it's a significant follow-up); right now you drive it, you don't shoot
+from it. Load it, try it, and paste any console output so it can be tuned.
 
 ## Installation
 
@@ -76,12 +92,18 @@ Main command: `/vehicle` (configurable).
 
 | Command | Description |
 | --- | --- |
-| `/vehicle` / `/vehicle help` | List vehicles you can spawn, with price & cooldown |
-| `/vehicle <name>` | Spawn a vehicle |
-| `/mini`, `/car`, `/boat`, `/horse`, … | Per-vehicle spawn shortcuts |
-| `/vehicle recall <name>` | Teleport your vehicle back to you |
-| `/vehicle remove <name>` | Despawn your vehicle |
-| `/vehicle where <name>` | Distance, compass direction and grid of your vehicle |
+| `/vehicle` / `/vehicle help` | List featured vehicles + a count of the rest |
+| `/vehicle catalog [filter]` | List **every** vehicle you can spawn (optionally filtered, e.g. `/vehicle catalog car`) |
+| `/vehicle <name>` | Spawn a vehicle (any catalog key, e.g. `/vehicle car_armored`) |
+| `/mini`, `/car`, `/boat`, `/horse`, … | Per-vehicle spawn shortcuts (featured vehicles only) |
+| `/vehicle recall <name>` | Recall your **nearest** vehicle of that type |
+| `/vehicle remove <name>` | Despawn your **nearest** vehicle of that type |
+| `/vehicle removeall` (or `/vehicle remove all`) | Despawn **all** your vehicles |
+| `/vehicle where <name>` | Distance, compass direction and grid of your nearest of that type |
+
+Generated catalog vehicles (e.g. `minicopter_sport`, `car_armored`,
+`rhib_elite`) don't have chat shortcuts — spawn them with `/vehicle <key>`.
+Find keys with `/vehicle catalog` or the console `vehicles.list`.
 
 ## Server console / RCON commands
 
@@ -180,17 +202,27 @@ entry looks like:
   "Health multiplier (1 = default toughness)": 1.2,
   "Speed multiplier (best-effort, 1 = default)": 1.5,
   "Protect from decay": false,
-  "Lock to owner (overrides global owner-only mount)": false
+  "Lock to owner (overrides global owner-only mount)": false,
+  "Disable AI (for NPC-based entities like Bradley)": false,
+  "Drivable (experimental, Bradley only)": false
 }
 ```
+
+Top-level options include `Maximum vehicles a player may own at once
+(0 = unlimited)` (default **25**) and `Allow owning more than one of the same
+vehicle type` (default **true**) — these control the multi-ownership behaviour.
 
 Add new vehicles by copying an entry, giving it a unique key, and setting the
 `Prefab` path + `Spawn commands`. Reload with `oxide.reload Vehicles`.
 
-### Custom variants & reaching 157
+### The 157 catalog
 
-Every entry is an independent vehicle, so a "custom vehicle" is just a base
-chassis (`Prefab`) plus modifiers:
+The default config now ships **157 vehicles**: the curated base + showcase
+vehicles, plus an auto-generated set of tiered variants — every chassis
+(minicopter, attack heli, car, rhib, submarine, horse, …) crossed with ten
+tiers (Stock, Sport, Racing, Armored, Heavy, Hauler, Hunter, VIP, Elite, Ghost),
+each with its own permission, price and stat profile. Every entry is just a
+base chassis (`Prefab`) plus modifiers:
 
 | Modifier | Effect |
 | --- | --- |
@@ -201,10 +233,7 @@ chassis (`Prefab`) plus modifiers:
 | `Lock to owner` | Only the owner (and admins) can mount it |
 | `Price` / `Cooldown` | Tier the variant for your economy |
 
-To build a large catalog (toward 157), clone the chassis entries and vary the
-name, skin, stats and price — e.g. a "Racing", "Armored", "Hauler" and "VIP"
-version of each chassis. There's no code limit on how many you define. Want me
-to generate the full 157-entry config for you? Just say so and I'll produce it.
+Edit, delete or add to these freely — there's no limit on how many you define.
 
 > **Speed note:** speed/handling is applied best-effort by probing common
 > vehicle fields via reflection; it affects most ground/water vehicles well,
