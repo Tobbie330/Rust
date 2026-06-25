@@ -50,6 +50,18 @@ cart needs rails) — enable them in the config if you want them.
 Minicopter, Gunship, War Helicopter, Sport Sedan, Monster Car, Hauler,
 Superbike, War Horse, Racing Snowmobile, Speedboat, Yacht, Attack Submarine.
 
+**Premium showcase vehicles** (`/apache`, `/motorhome`, `/bradley`):
+
+| Vehicle | Built on | Notes |
+| --- | --- | --- |
+| **Apache Gunship** | Attack helicopter | Armored, owner-locked, no-decay — a stand-in for a Karuza-style custom Apache (his exact model is a proprietary asset). |
+| **Motorhome** | 4-module car (storage modules) | Tough RV with onboard storage, no-decay. Stand-in for a custom motorhome. |
+| **Bradley Combat** | **Real** `bradley_apc` tank | Spawns the genuine game Bradley with its AI disabled (owned, tame, non-hostile). **Disabled by default** — enable in config. A *player-drivable* Bradley is a separate, larger build. |
+
+> Apache and Motorhome reuse base chassis because Karuza's actual 3D models are
+> paid asset bundles a plugin can't contain. Bradley uses the real in-game
+> entity, so it's the genuine tank — just neutralized so it doesn't attack you.
+
 ## Installation
 
 1. Run [Oxide/uMod](https://umod.org/games/rust) on your Rust server.

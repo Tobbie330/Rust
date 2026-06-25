@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Vehicles", "Tobbie", "3.0.0")]
+    [Info("Vehicles", "Tobbie", "3.1.0")]
     [Description("All-in-one personal vehicle system: spawn/recall/locate/despawn base + custom-variant Rust vehicles with permissions, prices, cooldowns, ownership, stat modifiers, Discord logging and a public API for compatible plugins.")]
     public class Vehicles : RustPlugin
     {
@@ -112,6 +112,12 @@ namespace Oxide.Plugins
                 ["yacht"] = Mod(Water("Yacht", "yacht", "assets/content/vehicles/boats/tugboat/tugboat.prefab", 3500, 2400, 60, new[] { "yacht" }), hp: 2f, noDecay: true, lockOwner: true),
                 ["attacksub"] = Mod(Water("Attack Submarine", "attacksub", "assets/content/vehicles/submarine/submarineduo.entity.prefab", 1400, 1000, 60, new[] { "attacksub" }), hp: 1.5f, speed: 1.3f),
 
+                // ===== Premium showcase vehicles (stand-ins for Karuza-style customs, built on real chassis/entities) =====
+                ["apache"] = Mod(V("Apache Gunship", "apache", "assets/content/vehicles/attackhelicopter/attackhelicopter.entity.prefab", 6000, 2400, 150, new[] { "apache" }), hp: 2f, speed: 1.1f, noDecay: true, lockOwner: true),
+                ["motorhome"] = Mod(V("Motorhome", "motorhome", "assets/content/vehicles/modularcar/4module_car_spawned.entity.prefab", 2500, 1800, 100, new[] { "motorhome", "rv" }), hp: 2.5f, noDecay: true, dist: 8f),
+                // Bradley spawns the REAL game tank. Disabled by default; DisableAI keeps it tame (owned, non-hostile). A fully drivable Bradley is a separate build.
+                ["bradley"] = Disabled(Mod(V("Bradley Combat", "bradley", "assets/prefabs/npc/m2bradley/bradley_apc.prefab", 10000, 3600, 0, new[] { "bradley", "apc" }), hp: 1f, noDecay: true, lockOwner: true, dist: 8f, disableAI: true)),
+
                 // Heavy / special vehicles – disabled by default (crane needs open ground, workcart needs rails).
                 ["magnetcrane"] = Disabled(V("Magnet Crane", "magnetcrane", "assets/content/vehicles/crane_magnet/magnetcrane.entity.prefab", 800, 900, 50, new[] { "crane" })),
                 ["workcart"] = Disabled(V("Work Cart", "workcart", "assets/content/vehicles/trains/workcart/workcart.entity.prefab", 1000, 1200, 50, new[] { "workcart", "train" })),
@@ -130,13 +136,16 @@ namespace Oxide.Plugins
             private static VehicleSettings Disabled(VehicleSettings v) { v.Enabled = false; return v; }
 
             // Apply custom-vehicle modifiers to a base entry to create a themed variant.
-            private static VehicleSettings Mod(VehicleSettings v, ulong skin = 0, float hp = 1f, float speed = 1f, bool noDecay = false, bool lockOwner = false)
+            private static VehicleSettings Mod(VehicleSettings v, ulong skin = 0, float hp = 1f, float speed = 1f,
+                bool noDecay = false, bool lockOwner = false, float dist = 4f, bool disableAI = false)
             {
                 v.SkinId = skin;
                 v.HealthMultiplier = hp;
                 v.SpeedMultiplier = speed;
                 v.NoDecay = noDecay;
                 v.LockToOwner = lockOwner;
+                v.SpawnDistance = dist;
+                v.DisableAI = disableAI;
                 return v;
             }
         }
@@ -188,6 +197,7 @@ namespace Oxide.Plugins
             [JsonProperty("Speed multiplier (best-effort, 1 = default)")] public float SpeedMultiplier = 1f;
             [JsonProperty("Protect from decay")] public bool NoDecay = false;
             [JsonProperty("Lock to owner (overrides global owner-only mount)")] public bool LockToOwner = false;
+            [JsonProperty("Disable AI (for NPC-based entities like Bradley)")] public bool DisableAI = false;
 
             [JsonIgnore] public string FullPermission => "vehicles." + Permission;
         }
@@ -879,6 +889,13 @@ namespace Oxide.Plugins
 
             if (s.SpeedMultiplier > 0f && Math.Abs(s.SpeedMultiplier - 1f) > 0.001f)
                 ApplySpeedMultiplier(entity, s.SpeedMultiplier);
+
+            if (s.DisableAI)
+            {
+                // Stops the entity's own Update loop (movement + targeting) – tames a spawned Bradley.
+                var apc = entity as BradleyAPC;
+                if (apc != null) apc.enabled = false;
+            }
         }
 
         private void ApplySpeedMultiplier(BaseEntity entity, float mult)
