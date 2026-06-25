@@ -9,8 +9,8 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Vehicles", "Tobbie", "2.0.0")]
-    [Description("All-in-one personal vehicle system: spawn/recall/locate/despawn every Rust vehicle with permissions, prices, cooldowns, ownership, Discord logging and a public API for compatible plugins.")]
+    [Info("Vehicles", "Tobbie", "3.0.0")]
+    [Description("All-in-one personal vehicle system: spawn/recall/locate/despawn base + custom-variant Rust vehicles with permissions, prices, cooldowns, ownership, stat modifiers, Discord logging and a public API for compatible plugins.")]
     public class Vehicles : RustPlugin
     {
         // Optional economy integrations – resolved at runtime, no hard dependency.
@@ -36,6 +36,9 @@ namespace Oxide.Plugins
         // Discord webhook queue (throttled to avoid 429 rate limits).
         private readonly Queue<string> discordQueue = new Queue<string>();
         private static readonly Dictionary<string, string> DiscordHeaders = new Dictionary<string, string> { ["Content-Type"] = "application/json" };
+
+        // Best-effort speed/handling fields probed via reflection across vehicle types (no-ops if absent).
+        private static readonly string[] SpeedFields = { "engineThrust", "engineThrustMax", "engineForce", "engineForceMax", "steerForce", "steeringScale", "thrust", "topSpeed", "maxSpeedFwd", "moveForceMax", "torqueScale" };
 
         #region Configuration
 
@@ -90,6 +93,25 @@ namespace Oxide.Plugins
                 ["pedalbike"] = V("Pedal Bike", "pedalbike", "assets/content/vehicles/bikes/pedalbike.prefab", 50, 120, 0, new[] { "bike", "pedalbike" }),
                 ["motorbike"] = V("Motorbike", "motorbike", "assets/content/vehicles/bikes/motorbike.prefab", 300, 300, 50, new[] { "motorbike" }),
                 ["motorbikesidecar"] = V("Motorbike + Sidecar", "motorbikesidecar", "assets/content/vehicles/bikes/motorbike_sidecar.prefab", 400, 360, 50, new[] { "sidecar" }),
+
+                // ===== Themed custom variants (same base chassis, different stats/skin/feel) =====
+                // Air
+                ["sportmini"] = Mod(V("Sport Minicopter", "sportmini", "assets/content/vehicles/minicopter/minicopter.entity.prefab", 900, 700, 75, new[] { "sportmini" }), hp: 1.2f, speed: 1.5f),
+                ["tankmini"] = Mod(V("Armored Minicopter", "tankmini", "assets/content/vehicles/minicopter/minicopter.entity.prefab", 1200, 900, 75, new[] { "tankmini" }), hp: 3f, speed: 0.85f, noDecay: true),
+                ["gunship"] = Mod(V("Gunship", "gunship", "assets/content/vehicles/scrap heli carrier/scraptransporthelicopter.prefab", 2500, 1500, 120, new[] { "gunship" }), hp: 1.75f),
+                ["warheli"] = Mod(V("War Helicopter", "warheli", "assets/content/vehicles/attackhelicopter/attackhelicopter.entity.prefab", 5000, 2400, 120, new[] { "warheli" }), hp: 2f, noDecay: true, lockOwner: true),
+                // Ground
+                ["sportsedan"] = Mod(V("Sport Sedan", "sportsedan", "assets/content/vehicles/sedan_a/sedantest.entity.prefab", 600, 450, 60, new[] { "sportcar" }), hp: 1.2f, speed: 1.4f),
+                ["monstercar"] = Mod(V("Monster Car", "monstercar", "assets/content/vehicles/modularcar/4module_car_spawned.entity.prefab", 1500, 1100, 75, new[] { "monster" }), hp: 2.5f, speed: 1.2f, noDecay: true),
+                ["hauler"] = Mod(V("Hauler", "hauler", "assets/content/vehicles/modularcar/4module_car_spawned.entity.prefab", 1100, 900, 75, new[] { "hauler" }), hp: 1.6f),
+                ["superbike"] = Mod(V("Superbike", "superbike", "assets/content/vehicles/bikes/motorbike.prefab", 700, 450, 60, new[] { "superbike" }), hp: 0.9f, speed: 1.6f),
+                ["warhorse"] = Mod(V("War Horse", "warhorse", "assets/content/vehicles/horse/ridablehorse2.prefab", 500, 450, 0, new[] { "warhorse" }), hp: 2f, speed: 1.3f),
+                ["racesled"] = Mod(V("Racing Snowmobile", "racesled", "assets/content/vehicles/snowmobiles/tomahasnowmobile.prefab", 700, 450, 60, new[] { "racesled" }), hp: 0.9f, speed: 1.5f),
+                // Water
+                ["speedboat"] = Mod(Water("Speedboat", "speedboat", "assets/content/vehicles/boats/rhib/rhib.prefab", 1000, 700, 60, new[] { "speedboat" }), hp: 1.1f, speed: 1.5f),
+                ["yacht"] = Mod(Water("Yacht", "yacht", "assets/content/vehicles/boats/tugboat/tugboat.prefab", 3500, 2400, 60, new[] { "yacht" }), hp: 2f, noDecay: true, lockOwner: true),
+                ["attacksub"] = Mod(Water("Attack Submarine", "attacksub", "assets/content/vehicles/submarine/submarineduo.entity.prefab", 1400, 1000, 60, new[] { "attacksub" }), hp: 1.5f, speed: 1.3f),
+
                 // Heavy / special vehicles – disabled by default (crane needs open ground, workcart needs rails).
                 ["magnetcrane"] = Disabled(V("Magnet Crane", "magnetcrane", "assets/content/vehicles/crane_magnet/magnetcrane.entity.prefab", 800, 900, 50, new[] { "crane" })),
                 ["workcart"] = Disabled(V("Work Cart", "workcart", "assets/content/vehicles/trains/workcart/workcart.entity.prefab", 1000, 1200, 50, new[] { "workcart", "train" })),
@@ -106,6 +128,17 @@ namespace Oxide.Plugins
             }
 
             private static VehicleSettings Disabled(VehicleSettings v) { v.Enabled = false; return v; }
+
+            // Apply custom-vehicle modifiers to a base entry to create a themed variant.
+            private static VehicleSettings Mod(VehicleSettings v, ulong skin = 0, float hp = 1f, float speed = 1f, bool noDecay = false, bool lockOwner = false)
+            {
+                v.SkinId = skin;
+                v.HealthMultiplier = hp;
+                v.SpeedMultiplier = speed;
+                v.NoDecay = noDecay;
+                v.LockToOwner = lockOwner;
+                return v;
+            }
         }
 
         private class DiscordSettings
@@ -148,6 +181,13 @@ namespace Oxide.Plugins
             [JsonProperty("Low grade fuel to add on spawn")] public int Fuel = 50;
             [JsonProperty("Spawn distance in front of player")] public float SpawnDistance = 4f;
             [JsonProperty("Requires water to spawn")] public bool RequiresWater = false;
+
+            // ----- Custom-vehicle modifiers (make a variant feel different from its base chassis) -----
+            [JsonProperty("Skin ID (0 = none)")] public ulong SkinId = 0;
+            [JsonProperty("Health multiplier (1 = default toughness)")] public float HealthMultiplier = 1f;
+            [JsonProperty("Speed multiplier (best-effort, 1 = default)")] public float SpeedMultiplier = 1f;
+            [JsonProperty("Protect from decay")] public bool NoDecay = false;
+            [JsonProperty("Lock to owner (overrides global owner-only mount)")] public bool LockToOwner = false;
 
             [JsonIgnore] public string FullPermission => "vehicles." + Permission;
         }
@@ -292,6 +332,12 @@ namespace Oxide.Plugins
             // Start the Discord webhook flush loop (throttled).
             if (!string.IsNullOrEmpty(config.Discord.WebhookUrl))
                 timer.Every(2f, ProcessDiscordQueue);
+
+            // OnEntityTakeDamage is a hot hook – only keep it if a vehicle actually needs decay protection.
+            var anyNoDecay = false;
+            foreach (var v in config.Vehicles.Values)
+                if (v.NoDecay) { anyNoDecay = true; break; }
+            if (!anyNoDecay) Unsubscribe(nameof(OnEntityTakeDamage));
         }
 
         private void OnServerSave() => SaveData();
@@ -456,6 +502,7 @@ namespace Oxide.Plugins
             entity.OwnerID = player.userID;
             entity.Spawn();
             TryGiveFuel(entity, settings.Fuel);
+            NextTick(() => ApplyModifications(entity, settings)); // health/speed/skin after components initialize
 
             data.Owned[key] = entity.net.ID.Value;
             data.LastSpawn[key] = Now;
@@ -618,7 +665,7 @@ namespace Oxide.Plugins
 
         private object CanMountEntity(BasePlayer player, BaseMountable mountable)
         {
-            if (!config.OwnerOnlyMount || player == null || mountable == null) return null;
+            if (player == null || mountable == null) return null;
 
             var vehicle = mountable as BaseVehicle ?? mountable.VehicleParent();
             if (vehicle?.net == null) return null;
@@ -626,11 +673,29 @@ namespace Oxide.Plugins
             OwnedVehicle owned;
             if (!vehiclesByNetId.TryGetValue(vehicle.net.ID.Value, out owned)) return null;
 
+            VehicleSettings settings;
+            config.Vehicles.TryGetValue(owned.Key, out settings);
+            var locked = config.OwnerOnlyMount || (settings != null && settings.LockToOwner);
+            if (!locked) return null;
+
             if (owned.OwnerId == player.userID) return null;
             if (HasPermission(player, PermAdmin)) return null;
 
             Message(player, "NotYourVehicle");
             return false;
+        }
+
+        // Only active when at least one vehicle has NoDecay (otherwise unsubscribed at startup).
+        private object OnEntityTakeDamage(BaseCombatEntity entity, HitInfo info)
+        {
+            if (entity?.net == null || info?.damageTypes == null) return null;
+            OwnedVehicle owned;
+            if (!vehiclesByNetId.TryGetValue(entity.net.ID.Value, out owned)) return null;
+            VehicleSettings settings;
+            if (!config.Vehicles.TryGetValue(owned.Key, out settings) || !settings.NoDecay) return null;
+            if (info.damageTypes.Get(Rust.DamageType.Decay) > 0f)
+                info.damageTypes.Scale(Rust.DamageType.Decay, 0f);
+            return null;
         }
 
         #endregion
@@ -790,6 +855,61 @@ namespace Oxide.Plugins
             var terrain = TerrainMeta.HeightMap.GetHeight(position);
             var water = TerrainMeta.WaterMap.GetHeight(position);
             return water - terrain > 1.0f;
+        }
+
+        private void ApplyModifications(BaseEntity entity, VehicleSettings s)
+        {
+            if (entity == null || entity.IsDestroyed || s == null) return;
+
+            if (s.SkinId != 0)
+            {
+                entity.skinID = s.SkinId;
+                entity.SendNetworkUpdate();
+            }
+
+            if (s.HealthMultiplier > 0f && Math.Abs(s.HealthMultiplier - 1f) > 0.001f)
+            {
+                var combat = entity as BaseCombatEntity;
+                if (combat != null)
+                {
+                    var newMax = combat.MaxHealth() * s.HealthMultiplier;
+                    combat.InitializeHealth(newMax, newMax);
+                }
+            }
+
+            if (s.SpeedMultiplier > 0f && Math.Abs(s.SpeedMultiplier - 1f) > 0.001f)
+                ApplySpeedMultiplier(entity, s.SpeedMultiplier);
+        }
+
+        private void ApplySpeedMultiplier(BaseEntity entity, float mult)
+        {
+            try
+            {
+                const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                    | System.Reflection.BindingFlags.DeclaredOnly;
+                var changed = false;
+                foreach (var name in SpeedFields)
+                {
+                    var t = entity.GetType();
+                    while (t != null && t != typeof(object))
+                    {
+                        var f = t.GetField(name, flags);
+                        if (f != null && f.FieldType == typeof(float))
+                        {
+                            f.SetValue(entity, (float)f.GetValue(entity) * mult);
+                            changed = true;
+                            break;
+                        }
+                        t = t.BaseType;
+                    }
+                }
+                if (changed) entity.SendNetworkUpdate();
+            }
+            catch (Exception ex)
+            {
+                PrintWarning($"Speed modifier could not be applied to {entity.ShortPrefabName}: {ex.Message}");
+            }
         }
 
         private void TryGiveFuel(BaseEntity entity, int amount)

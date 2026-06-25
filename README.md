@@ -11,14 +11,18 @@ detectors, admin tools, etc.) can integrate with it.
 > **Note on Karuza's custom vehicles:** the cars/planes/UFOs/hovercraft sold at
 > karuza.dev are proprietary 3D **asset bundles**. A plugin can only spawn
 > prefabs that exist in the game/server, so those exact models can't be baked
-> into a plugin. This plugin covers **every base-game Rust vehicle** and is
-> fully **config-driven**, so any custom prefab path you own can be added as a
-> new entry without touching code.
+> into a plugin. Instead this plugin gives you a **custom-variant framework**:
+> take any base-game chassis and reskin/retune it (toughness, speed, fuel,
+> no-decay, owner-lock, custom name, price tier) to create vehicles that *feel*
+> custom — and it's fully config-driven, so you can add as many variants as you
+> like (see "Custom variants & reaching 157" below).
 
 ## Features
 
 - **All-in-one, Oxide-only** — one `Vehicles.cs`, no Carbon required.
-- **22 base-game vehicles** out of the box (see list below).
+- **22 base-game vehicles + 13 themed custom variants** out of the box.
+- **Custom-variant framework** — per-vehicle **skin**, **health/toughness**,
+  **speed/handling** (best-effort), **no-decay** and **owner-lock** modifiers.
 - **Per-vehicle permission, price, cooldown and fuel.**
 - **Economy** via **Economics** (coins) or **ServerRewards** (RP) — both
   optional; free if neither is installed.
@@ -41,6 +45,10 @@ motorbike + sidecar · magnet crane* · work cart*
 
 `*` magnet crane and work cart ship **disabled** (crane needs open ground, work
 cart needs rails) — enable them in the config if you want them.
+
+**Themed variants** (same chassis, different feel): Sport Minicopter, Armored
+Minicopter, Gunship, War Helicopter, Sport Sedan, Monster Car, Hauler,
+Superbike, War Horse, Racing Snowmobile, Speedboat, Yacht, Attack Submarine.
 
 ## Installation
 
@@ -144,23 +152,53 @@ A default `oxide/config/Vehicles.json` is generated on first load. Each vehicle
 entry looks like:
 
 ```json
-"minicopter": {
+"sportmini": {
   "Enabled": true,
-  "Display name": "Minicopter",
-  "Permission suffix (vehicles.<suffix>)": "minicopter",
-  "Spawn commands": [ "mini", "minicopter" ],
+  "Display name": "Sport Minicopter",
+  "Permission suffix (vehicles.<suffix>)": "sportmini",
+  "Spawn commands": [ "sportmini" ],
   "Prefab": "assets/content/vehicles/minicopter/minicopter.entity.prefab",
-  "Price (0 = free)": 500.0,
+  "Price (0 = free)": 900.0,
   "Currency (Economics or ServerRewards)": "Economics",
-  "Cooldown in seconds": 600.0,
-  "Low grade fuel to add on spawn": 50,
+  "Cooldown in seconds": 700.0,
+  "Low grade fuel to add on spawn": 75,
   "Spawn distance in front of player": 4.0,
-  "Requires water to spawn": false
+  "Requires water to spawn": false,
+  "Skin ID (0 = none)": 0,
+  "Health multiplier (1 = default toughness)": 1.2,
+  "Speed multiplier (best-effort, 1 = default)": 1.5,
+  "Protect from decay": false,
+  "Lock to owner (overrides global owner-only mount)": false
 }
 ```
 
 Add new vehicles by copying an entry, giving it a unique key, and setting the
 `Prefab` path + `Spawn commands`. Reload with `oxide.reload Vehicles`.
+
+### Custom variants & reaching 157
+
+Every entry is an independent vehicle, so a "custom vehicle" is just a base
+chassis (`Prefab`) plus modifiers:
+
+| Modifier | Effect |
+| --- | --- |
+| `Skin ID` | Applies a workshop/item skin where the chassis supports it |
+| `Health multiplier` | Tougher or more fragile (e.g. `2.5` = armored) |
+| `Speed multiplier` | Best-effort speed/handling tweak (see note) |
+| `Protect from decay` | Vehicle never decays |
+| `Lock to owner` | Only the owner (and admins) can mount it |
+| `Price` / `Cooldown` | Tier the variant for your economy |
+
+To build a large catalog (toward 157), clone the chassis entries and vary the
+name, skin, stats and price — e.g. a "Racing", "Armored", "Hauler" and "VIP"
+version of each chassis. There's no code limit on how many you define. Want me
+to generate the full 157-entry config for you? Just say so and I'll produce it.
+
+> **Speed note:** speed/handling is applied best-effort by probing common
+> vehicle fields via reflection; it affects most ground/water vehicles well,
+> but some chassis (notably helicopters) expose no simple speed value, so the
+> multiplier may be a no-op there. Toughness, fuel, skin, no-decay and
+> owner-lock always apply.
 
 ## Notes
 
