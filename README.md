@@ -1,102 +1,147 @@
 # Vehicles
 
-A personal-vehicle plugin for the game **Rust** (Facepunch), built for the
-**Oxide/uMod** modding framework. Because Carbon implements the Oxide API,
-the same compiled plugin also runs on **Carbon** servers — no changes needed.
+An all-in-one **personal vehicle** plugin for the game **Rust** (Facepunch),
+built for the **Oxide/uMod** framework. Single file, no hard dependencies.
 
-It lets players spawn, recall, locate and despawn their own vehicles
-(minicopters, cars, boats, submarines, horses and more) gated by
-permissions, prices and cooldowns. The design mirrors the popular custom
-vehicle systems such as the ones at [karuza.dev](https://karuza.dev/):
-ownership tracking, economy integration, a vehicle locator and loot-safety
-checks.
+It lets players spawn, recall, locate and despawn their own vehicles, gated by
+permissions, prices and cooldowns — with **Discord webhook logging** and a
+**public API + hooks** so the wider "compatible plugin" ecosystem (shops,
+detectors, admin tools, etc.) can integrate with it.
+
+> **Note on Karuza's custom vehicles:** the cars/planes/UFOs/hovercraft sold at
+> karuza.dev are proprietary 3D **asset bundles**. A plugin can only spawn
+> prefabs that exist in the game/server, so those exact models can't be baked
+> into a plugin. This plugin covers **every base-game Rust vehicle** and is
+> fully **config-driven**, so any custom prefab path you own can be added as a
+> new entry without touching code.
 
 ## Features
 
-- **11 ready-to-use vehicles** out of the box — minicopter, scrap transport
-  heli, attack heli, sedan, modular car, rowboat, RHIB, solo submarine, hot
-  air balloon, ridable horse and snowmobile.
-- **Per-vehicle permissions** — `vehicles.<suffix>` controls who may spawn
-  each vehicle.
-- **Per-vehicle price & cooldown** — charge in **Economics** coins or
-  **ServerRewards** RP (both optional; if neither is installed, spawns are
-  free).
-- **Ownership** — one of each vehicle type per player, tracked across server
-  restarts. Optionally restrict mounting to the owner.
-- **Recall** — teleport your idle vehicle back to you.
-- **Locate** (`where`) — get distance, compass direction and map grid of your
-  vehicle, similar to a "vehicle detector".
-- **Despawn** (`remove`) — clear a vehicle you no longer want.
-- **Loot safety** — recall/remove refuse to act on a vehicle that still has
-  items in its storage, so you never lose gear.
-- **Automatic fuel** — vehicles spawn with a configurable amount of low grade
-  fuel.
-- **Building-blocked, water and max-vehicle checks.**
-- **Admin bypass** — `vehicles.admin` spawns for free and ignores cooldowns.
-- Fully **configurable** and **localized** (lang file).
+- **All-in-one, Oxide-only** — one `Vehicles.cs`, no Carbon required.
+- **22 base-game vehicles** out of the box (see list below).
+- **Per-vehicle permission, price, cooldown and fuel.**
+- **Economy** via **Economics** (coins) or **ServerRewards** (RP) — both
+  optional; free if neither is installed.
+- **Ownership** — one of each type per player, tracked across restarts;
+  optional owner-only mounting.
+- **Recall / remove / where** management with loot-safety, building-blocked,
+  water and max-vehicle checks.
+- **Discord webhook logging** of spawns, recalls, removals, denials and API
+  actions (throttled to avoid rate limits).
+- **Public API + hooks** for compatible plugins.
+- **Server console / RCON commands** for testing and admin spawning.
+- Fully **configurable** and **localized**.
+
+## Vehicles included
+
+minicopter · scrap transport heli · attack heli · sedan · 2/3/4-module cars ·
+rowboat · RHIB · tugboat · kayak · solo & duo submarines · hot air balloon ·
+ridable horse · snowmobile · tomaha snowmobile · pedal bike · motorbike ·
+motorbike + sidecar · magnet crane* · work cart*
+
+`*` magnet crane and work cart ship **disabled** (crane needs open ground, work
+cart needs rails) — enable them in the config if you want them.
 
 ## Installation
 
-1. Make sure your server runs [Oxide/uMod](https://umod.org/games/rust) or
-   [Carbon](https://carbonmod.gg/).
-2. Copy `Vehicles.cs` into your server's `oxide/plugins/` folder
-   (`carbon/plugins/` on Carbon).
-3. The plugin compiles and loads automatically and writes a default config to
-   `oxide/config/Vehicles.json`.
-4. (Optional) Install **Economics** and/or **ServerRewards** if you want to
-   charge for vehicles.
+1. Run [Oxide/uMod](https://umod.org/games/rust) on your Rust server.
+2. Drop `Vehicles.cs` into `oxide/plugins/`.
+3. A default config is written to `oxide/config/Vehicles.json`.
+4. (Optional) Install **Economics** and/or **ServerRewards** to charge for
+   vehicles, and set a Discord webhook URL in the config to enable logging.
 
-## Commands
+## Player commands
 
-The main command is `/vehicle` (configurable). Every vehicle also has its own
-shortcut commands.
+Main command: `/vehicle` (configurable).
 
 | Command | Description |
 | --- | --- |
-| `/vehicle` or `/vehicle help` | List the vehicles you can spawn, with price & cooldown |
-| `/vehicle <name>` | Spawn a vehicle (e.g. `/vehicle minicopter`) |
+| `/vehicle` / `/vehicle help` | List vehicles you can spawn, with price & cooldown |
+| `/vehicle <name>` | Spawn a vehicle |
 | `/mini`, `/car`, `/boat`, `/horse`, … | Per-vehicle spawn shortcuts |
 | `/vehicle recall <name>` | Teleport your vehicle back to you |
 | `/vehicle remove <name>` | Despawn your vehicle |
-| `/vehicle where <name>` | Show distance, direction and grid of your vehicle |
+| `/vehicle where <name>` | Distance, compass direction and grid of your vehicle |
 
-`<name>` accepts either the config key (`minicopter`) or any of the vehicle's
-command aliases (`mini`).
+## Server console / RCON commands
+
+Run these from the server console or any RCON tool (RustAdmin, WebRcon, etc.):
+
+| Command | Description |
+| --- | --- |
+| `vehicles.list` | Print every configured vehicle (key, enabled, price, prefab) |
+| `vehicles.give <steamId\|name> <vehicleKey>` | Spawn a vehicle next to an **online** player (free) — great for testing |
+
+Example: `vehicles.give 76561198000000000 minicopter`
 
 ## Permissions
 
 | Permission | Grants |
 | --- | --- |
-| `vehicles.admin` | Free spawns and no cooldowns (if *Admin bypass* is on); can mount anyone's vehicle |
-| `vehicles.minicopter` | Spawn the minicopter |
-| `vehicles.sedan` | Spawn the sedan |
-| `vehicles.rowboat` | Spawn the rowboat |
-| `vehicles.<suffix>` | One per configured vehicle — the suffix comes from each vehicle's config |
-
-Grant with, e.g.:
+| `vehicles.admin` | Free spawns, no cooldowns, can mount anyone's vehicle |
+| `vehicles.<suffix>` | One per vehicle (suffix comes from each vehicle's config) |
 
 ```
 oxide.grant group default vehicles.minicopter
 oxide.grant user "76561198000000000" vehicles.admin
 ```
 
+## Discord logging
+
+Set a webhook under `Discord logging` in the config:
+
+```json
+"Discord logging": {
+  "Webhook URL (leave empty to disable)": "https://discord.com/api/webhooks/...",
+  "Bot username": "Vehicles",
+  "Avatar URL (optional)": "",
+  "Log spawns": true,
+  "Log recalls": true,
+  "Log removals": true,
+  "Log denials (no permission / cooldown / cannot afford)": false,
+  "Log admin and API actions": true
+}
+```
+
+Each event is posted as a rich embed (player name, SteamID, vehicle, grid,
+cost). Messages are queued and sent ~1 every 2s so a busy server never trips
+Discord's rate limit.
+
+## Public API (for shops, detectors, admin tools, …)
+
+Other plugins can reference this plugin and call:
+
+```csharp
+[PluginReference] private Plugin Vehicles;
+
+bool   isOurs   = Vehicles.Call<bool>("IsVehicle", entity);
+string key      = Vehicles.Call<string>("GetVehicleType", entity);
+ulong  ownerId  = Vehicles.Call<ulong>("GetVehicleOwnerId", entity);
+var    owned    = Vehicles.Call<Dictionary<string, ulong>>("GetOwnedVehicles", userId);
+string display  = Vehicles.Call<string>("GetVehicleDisplayName", key);
+var    spawned  = Vehicles.Call<BaseEntity>("SpawnVehicleForPlayer", player, key, true);
+bool   removed  = Vehicles.Call<bool>("DespawnVehicle", entity);
+```
+
+`SpawnVehicleForPlayer` is what a **vehicle shop** would call to deliver a
+purchase; `IsVehicle` / `GetVehicleOwnerId` / `GetVehicleType` are what a
+**detector** or **admin tool** would use to identify and act on vehicles.
+
+## Hooks (subscribe from your own plugin)
+
+```csharp
+// Return non-null to BLOCK a spawn.
+object CanSpawnVehicle(BasePlayer player, string key)
+
+void OnVehiclesVehicleSpawned(BaseEntity entity, BasePlayer player, string key)
+void OnVehiclesVehicleRecalled(BaseEntity entity, BasePlayer player, string key)
+void OnVehiclesVehicleRemoved(BaseEntity entity, BasePlayer player, string key)
+```
+
 ## Configuration
 
-A default `oxide/config/Vehicles.json` is generated on first load. Top-level
-options:
-
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `Main chat command` | `vehicle` | The primary command name |
-| `Message prefix` | `[Vehicles]` | Prefix shown before chat messages |
-| `Maximum vehicles a player may own at once (0 = unlimited)` | `3` | Cap on simultaneously owned vehicles |
-| `Block spawning while building blocked` | `true` | Prevent spawning in enemy bases |
-| `Only the owner (and admins) may mount their vehicle` | `false` | Lock vehicles to their owner |
-| `Refuse to despawn/recall vehicles that still contain items` | `true` | Loot-safety guard |
-| `Players with the admin permission spawn for free and ignore cooldowns` | `true` | Toggle admin bypass |
-| `Vehicles` | (11 entries) | Per-vehicle settings |
-
-Each entry under `Vehicles` supports:
+A default `oxide/config/Vehicles.json` is generated on first load. Each vehicle
+entry looks like:
 
 ```json
 "minicopter": {
@@ -114,22 +159,14 @@ Each entry under `Vehicles` supports:
 }
 ```
 
-To add a new vehicle, copy an entry, give it a unique key, set the `Prefab`
-path, choose a `Permission suffix` and `Spawn commands`, then reload the
-plugin.
-
-## Localization
-
-All player-facing text lives in `oxide/lang/en/Vehicles.json` and can be
-edited or translated to other languages.
+Add new vehicles by copying an entry, giving it a unique key, and setting the
+`Prefab` path + `Spawn commands`. Reload with `oxide.reload Vehicles`.
 
 ## Notes
 
-- Vehicle prefab paths target current Rust builds. If Facepunch renames a
-  prefab in a future update, set the new path in the config — no code change
-  required.
-- Economy integration is optional and resolved at runtime; the plugin works
-  with neither, either, or both Economics and ServerRewards installed.
+- Prefab paths target current Rust builds. If Facepunch renames a prefab, set
+  the new path in the config — no code change needed.
+- Economy and Discord are optional and resolved at runtime.
 
 ## License
 
