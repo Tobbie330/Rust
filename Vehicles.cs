@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Vehicles", "Tobbie", "4.0.0")]
+    [Info("Vehicles", "Tobbie", "4.0.1")]
     [Description("All-in-one Rust vehicle system: a 157-vehicle catalog of base + custom-variant vehicles with permissions, prices, cooldowns, multi-ownership, stat modifiers, an experimental drivable Bradley, Discord logging and a public API.")]
     public class Vehicles : RustPlugin
     {
@@ -509,7 +509,10 @@ namespace Oxide.Plugins
             r.Settings = settings;
 
             if (!settings.Enabled) { r.ErrorKey = "VehicleDisabled"; return r; }
-            if (!fromApi && !HasPermission(player, settings.FullPermission)) { r.ErrorKey = "NoPermission"; return r; }
+
+            // Admins (with the bypass permission) can spawn any vehicle without each per-vehicle permission.
+            var isAdmin = config.AdminBypass && HasPermission(player, PermAdmin);
+            if (!fromApi && !isAdmin && !HasPermission(player, settings.FullPermission)) { r.ErrorKey = "NoPermission"; return r; }
 
             var data = storedData.Get(player.userID);
             ScrubMissing(data);
@@ -521,7 +524,7 @@ namespace Oxide.Plugins
 
             if (config.BlockWhenBuildingBlocked && player.IsBuildingBlocked()) { r.ErrorKey = "BuildingBlocked"; return r; }
 
-            var bypass = forceFree || (config.AdminBypass && HasPermission(player, PermAdmin));
+            var bypass = forceFree || isAdmin;
             var noCooldown = forceNoCooldown || bypass;
 
             if (config.MaxVehicles > 0 && data.Vehicles.Count >= config.MaxVehicles && !bypass)
@@ -1138,6 +1141,10 @@ namespace Oxide.Plugins
         private bool HasPermission(BasePlayer player, string perm)
             => permission.UserHasPermission(player.UserIDString, perm);
 
+        // Admins (with bypass) may use any vehicle; everyone else needs the per-vehicle permission.
+        private bool CanUse(BasePlayer player, VehicleSettings settings)
+            => (config.AdminBypass && HasPermission(player, PermAdmin)) || HasPermission(player, settings.FullPermission);
+
         #endregion
 
         #region Economy
@@ -1262,7 +1269,7 @@ namespace Oxide.Plugins
             foreach (var kvp in config.Vehicles)
             {
                 var s = kvp.Value;
-                if (!s.Enabled || !HasPermission(player, s.FullPermission)) continue;
+                if (!s.Enabled || !CanUse(player, s)) continue;
                 total++;
                 if (s.Commands == null || s.Commands.Length == 0) continue; // only show featured (with shortcut commands)
                 var cmd = "/" + s.Commands[0];
@@ -1279,7 +1286,7 @@ namespace Oxide.Plugins
             var keys = new List<string>();
             foreach (var kvp in config.Vehicles)
             {
-                if (!kvp.Value.Enabled || !HasPermission(player, kvp.Value.FullPermission)) continue;
+                if (!kvp.Value.Enabled || !CanUse(player, kvp.Value)) continue;
                 if (filter != null && kvp.Key.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0) continue;
                 keys.Add(kvp.Key);
             }
