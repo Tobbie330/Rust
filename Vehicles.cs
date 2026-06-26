@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Vehicles", "Tobbie", "4.0.1")]
+    [Info("Vehicles", "Tobbie", "4.0.2")]
     [Description("All-in-one Rust vehicle system: a 157-vehicle catalog of base + custom-variant vehicles with permissions, prices, cooldowns, multi-ownership, stat modifiers, an experimental drivable Bradley, Discord logging and a public API.")]
     public class Vehicles : RustPlugin
     {
@@ -817,17 +817,19 @@ namespace Oxide.Plugins
         private void CcmdGive(ConsoleSystem.Arg arg)
         {
             if (!IsConsoleAdmin(arg)) { arg.ReplyWith("You are not allowed to use this command."); return; }
-            if (arg.Args == null || arg.Args.Length < 2)
+            if (!arg.HasArgs(2))
             {
                 arg.ReplyWith("Usage: vehicles.give <steamId|name> <vehicleKey>  (see vehicles.list)");
                 return;
             }
 
-            var target = FindOnlinePlayer(arg.Args[0]);
-            if (target == null) { arg.ReplyWith($"No online player matched '{arg.Args[0]}'."); return; }
+            var who = arg.GetString(0);
+            var target = FindOnlinePlayer(who);
+            if (target == null) { arg.ReplyWith($"No online player matched '{who}'."); return; }
 
-            var key = ResolveKey(arg.Args[1]);
-            if (!config.Vehicles.ContainsKey(key ?? string.Empty)) { arg.ReplyWith($"Unknown vehicle '{arg.Args[1]}'. Try vehicles.list."); return; }
+            var requested = arg.GetString(1);
+            var key = ResolveKey(requested);
+            if (!config.Vehicles.ContainsKey(key ?? string.Empty)) { arg.ReplyWith($"Unknown vehicle '{requested}'. Try vehicles.list."); return; }
 
             var entity = SpawnVehicleForPlayer(target, key, true);
             arg.ReplyWith(entity != null
@@ -839,7 +841,7 @@ namespace Oxide.Plugins
         private void CcmdList(ConsoleSystem.Arg arg)
         {
             if (!IsConsoleAdmin(arg)) { arg.ReplyWith("You are not allowed to use this command."); return; }
-            var filter = arg.Args != null && arg.Args.Length > 0 ? arg.Args[0].ToLower() : null;
+            var filter = arg.HasArgs(1) ? arg.GetString(0).ToLower() : null;
             var sb = new System.Text.StringBuilder();
             var shown = 0;
             foreach (var kvp in config.Vehicles)
